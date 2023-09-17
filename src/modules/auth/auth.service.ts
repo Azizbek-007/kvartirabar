@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, Inject, ForbiddenException } from '@nestjs/common';
+import { Injectable, ConflictException, Inject, ForbiddenException, BadGatewayException, BadRequestException } from '@nestjs/common';
 import { Cache } from 'cache-manager';
 import { SignUpDto } from './dto/sign-up.dto';
 import { UserService } from 'modules/user/user.service';
@@ -27,69 +27,51 @@ export class AuthService {
 
     public async signUp(signUpDto: SignUpDto): Promise<{ ttl: number }> {
         await this.userService.create(signUpDto);
-       await this.generateAndSendOtpCode(signUpDto.email);
-        return {
-            ttl: 300,
-        };
+        return await this.sendOtpCode(signUpDto.email);
     }
 
     public async resendOtp(emailDto: EmailDto): Promise<{ ttl: number; }> {
-        const existOtpCode = await this.cacheManager.get(emailDto.email);
-        if (existOtpCode) {
-            const getTtl = await this.cacheManager.store.ttl(emailDto.email);
-            return {
-                ttl: getTtl
-            }
+        const user = await this.userService.getByEmail(emailDto.email);
+        if (!user) {
+            throw new BadRequestException('email is not exist')
         }
-        const otpCode = generateOtpCode();
-        await this.mailService.sendEmail({
-            to: emailDto.email,
-            subject: 'verification code',
-            text: `<code>${otpCode}</code>`
-        });
-        await this.cacheManager.set(emailDto.email, otpCode, { ttl: 300 } as any);
-        return {
-            ttl: 300,
+        if (user.isActive == true) {
+            throw new BadRequestException('email is already verified')
         }
+        return await this.sendOtpCode(emailDto.email);
     }
 
     public async verifyOtp(verifyOtpDto: VerifyOtpDto) {
         const existOtpCode = await this.cacheManager.get(verifyOtpDto.email);
-        if (!existOtpCode) {
-            throw new ConflictException('otp code is not exist')
+        if (!existOtpCode || existOtpCode !== verifyOtpDto.otp) {
+            throw new ConflictException('Invalid OTP code');
         }
-        if (existOtpCode !== verifyOtpDto.otp) {
-            throw new ConflictException('otp code is not match')
-        }
-        if (existOtpCode === verifyOtpDto.otp) {
-            await this.cacheManager.del(verifyOtpDto.email);
-            const user = await this.userService.setUserVerifiedByEmail(verifyOtpDto.email);
-            const tokens = await this.tokenService.generateTokens({
-                userId: user._id.toString()
-            });
-            await this.tokenService.saveToken(user._id.toString(), tokens.refreshToken);
-
-            return { user, tokens };
-        }
+        await this.cacheManager.del(verifyOtpDto.email);
+        const user = await this.userService.setUserVerifiedByEmail(verifyOtpDto.email);
+        const tokens = await this.tokenService.generateTokens({
+            userId: user._id.toString(),
+        });
+        await this.tokenService.saveToken(user._id.toString(), tokens.refreshToken);
+        return { user, tokens };
     }
 
     public async signIn(loginDto: LoginDto) {
         const user = await this.userService.getByEmail(loginDto.email);
         if (!user) {
-            throw new ConflictException('email is not exist')
+            throw new BadRequestException('Email not found');
         }
-        if (user && !user.isActive) {
-            throw new ConflictException('email is not verified')
+        if (!user.isActive) {
+            throw new ForbiddenException('Email is not verified');
         }
-        if (user && user.isActive && await comparePasswords(loginDto.password, user.password)) {
-            const tokens = await this.tokenService.generateTokens({
-                userId: user._id.toString()
-            });
-            await this.tokenService.saveToken(user._id.toString(), tokens.refreshToken);
-
-            return { user, tokens };
+        if (!(await comparePasswords(loginDto.password, user.password))) {
+            throw new BadRequestException('Invalid email or password');
         }
 
+        const tokens = await this.tokenService.generateTokens({
+            userId: user._id.toString(),
+        });
+        await this.tokenService.saveToken(user._id.toString(), tokens.refreshToken);
+        return { user, ...tokens };
     }
 
     public async logout(userId: string) {
@@ -111,14 +93,46 @@ export class AuthService {
         return tokens;
     }
 
-    private async generateAndSendOtpCode(email: string): Promise<string> {
+    public async forgotPassword(email: string) {
+        const user = await this.userService.getByEmail(email);
+        if (!user) {
+            throw new BadGatewayException('email is not exist')
+        }
+        if (user && !user.isActive) {
+            throw new ForbiddenException('email is not verified')
+        }
+        if (user && user.isActive) {
+            return await this.sendOtpCode(email);
+        }
+    }
+
+    public async resetPassword(resetPasswordDto: VerifyOtpDto) {
+        const existOtpCode = await this.cacheManager.get(resetPasswordDto.email);
+        if (!existOtpCode || existOtpCode !== resetPasswordDto.otp) {
+            throw new ConflictException('Invalid OTP code');
+        }
+        await this.cacheManager.del(resetPasswordDto.email);
+        const user = await this.userService.getByEmail(resetPasswordDto.email);
+        const tokens = await this.tokenService.generateTokens({
+            userId: user._id.toString(),
+        });
+        await this.tokenService.saveToken(user._id.toString(), tokens.refreshToken);
+        return { user, tokens };
+    }
+
+    private async sendOtpCode(email: string) {
+        const existOtpCode = await this.cacheManager.get(email);
+        if (existOtpCode) {
+            const ttl = await this.cacheManager.store.ttl(email);
+            return { ttl }
+        }
         const otpCode = generateOtpCode();
         await this.mailService.sendEmail({
             to: email,
             subject: 'verification code',
-            text: `<code>${otpCode}</code>`,
+            html: `code: <code>${otpCode}</code>`,
         });
-        await this.cacheManager.set(email, otpCode, { ttl: 300 } as any);
-        return otpCode;
+        await this.cacheManager.set(email, otpCode, { ttl: 100 } as any);
+        return { ttl: 100 };
     }
 }

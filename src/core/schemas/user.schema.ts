@@ -39,7 +39,7 @@ export class User {
     @Prop({
         type: Mongoose.SchemaTypes.String,
         required: true,
-        unique: true, // Add this line to make the email field unique
+        unique: true,
     })
     email: string;
 
@@ -63,6 +63,19 @@ export class User {
     isActive: boolean;
 
     @Prop({
+        type: Mongoose.SchemaTypes.Boolean,
+        default: true
+    })
+    isOnline: boolean;
+
+    @Prop({
+        type: Mongoose.SchemaTypes.Date,
+        required: false,
+        default: Date.now,
+    })
+    lastLogin?: Date;
+
+    @Prop({
         type: Mongoose.SchemaTypes.Date,
         required: true,
         default: Date.now,
@@ -77,7 +90,7 @@ export class User {
 
     async saveWithHashedPassword(this: UserDocument) {
         if (this.isModified('password')) {
-            const saltRounds = 10; // You can adjust this value
+            const saltRounds = 10;
             const hashedPassword = await bcryptjs.hash(this.password, saltRounds);
             this.password = hashedPassword;
         }

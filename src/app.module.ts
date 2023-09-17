@@ -1,4 +1,5 @@
 import * as NestCommon from '@nestjs/common';
+import { HomeModule } from 'modules/home/home.module';
 import * as NestCore from '@nestjs/core';
 import * as NestConfig from '@nestjs/config';
 import * as NestCache from '@nestjs/cache-manager';
@@ -11,6 +12,8 @@ import * as Modules from 'src/modules';
 import * as Logger from 'common/logger';
 import * as Configs from "common/config";
 import * as Databases from 'core/shared/database/mongodb/mongodb.module';
+import { CategoryModule } from 'modules/category/category.module';
+import { LoggerMiddleware } from 'common/middlewares/logger.middleware';
 
 @NestCommon.Module({
     imports: [
@@ -45,7 +48,9 @@ import * as Databases from 'core/shared/database/mongodb/mongodb.module';
             limit: 120,
         }),
         Databases.MongodbModule,
-        Modules.IndexModule],
+        Modules.IndexModule,
+        CategoryModule,
+        HomeModule],
     providers: [
         {
             provide: NestCore.APP_GUARD,
@@ -53,4 +58,9 @@ import * as Databases from 'core/shared/database/mongodb/mongodb.module';
         },
     ],
 })
-export class AppModule { }
+export class AppModule implements NestCommon.NestModule {
+    configure(consumer: NestCommon.MiddlewareConsumer) {
+        consumer.apply(LoggerMiddleware).forRoutes('*');
+    }
+
+ }

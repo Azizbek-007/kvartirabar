@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { UserRepository } from './user.repository';
 import { User } from 'core/schemas';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -8,25 +8,33 @@ import { MailService } from 'modules/mail/mail.service';
 export class UserService {
     constructor(
         private readonly userRepository: UserRepository
-    ) {}
+    ) { }
 
-    public getByEmail (email: string): Promise<import("mongoose").Document<unknown, any, User> & Omit<User & { _id: import("mongoose").Types.ObjectId; }, never> & Required<{ _id: import("mongoose").Types.ObjectId; }>>{
+    public getByEmail(email: string): Promise<import("mongoose").Document<unknown, any, User> & Omit<User & { _id: import("mongoose").Types.ObjectId; }, never> & Required<{ _id: import("mongoose").Types.ObjectId; }>> {
         return this.userRepository.getByEmail(email);
     }
 
-    public async getById (_id: string) {
+    public async getById(_id: string) {
         return await this.userRepository.getById(_id);
     }
 
-    public async findAll (): Promise<User[]> {
+    public async findAll(): Promise<User[]> {
         return await this.userRepository.findAll();
     }
 
     public async create(createUserDto: CreateUserDto) {
+
+        const user = await this.userRepository.getByEmail(createUserDto.email);
+        console.log(user)
+        if (user?.isActive == true) {
+            throw new ConflictException('Email already exists');
+        } else if (user?.isActive == false) {
+            return user;
+        }
         return await this.userRepository.create(createUserDto);
     }
 
-    public async setUserVerifiedByEmail (email: string) {
+    public async setUserVerifiedByEmail(email: string) {
         return await this.userRepository.setUserVerifiedByEmail(email)
     }
 }

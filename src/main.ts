@@ -13,7 +13,9 @@ import * as Interceptors from "common/interceptors/transform.interceptor";
 import * as Configs from 'common/config';
 
 !async function (): Promise<void> {
-    const app = await NestCore.NestFactory.create(App.AppModule);
+    const app = await NestCore.NestFactory.create(App.AppModule, {
+        logger: ['error', 'warn', 'debug', 'verbose']
+    });
 
     const config = app.get(NestConfig.ConfigService);
     const logger = app.get(Logger.LoggerService);
@@ -51,7 +53,7 @@ import * as Configs from 'common/config';
 
     const server = config.get<NestConfig.ConfigType<typeof Configs.ServerConfig>>('server');
 
-   await app.listen(server.port, server.host, async () => {
+   await app.listen(server.port, '172.20.10.11', async () => {
         logger.info(`Server running on ${await app.getUrl()}`)
    });
 }();

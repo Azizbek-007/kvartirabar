@@ -15,23 +15,25 @@ export class AuthController {
         private readonly authService: AuthService,
     ) { }
 
-    @Post('/signup')
+    @Post('signup')
     public async signUp(@Body() signUpDto: SignUpDto) {
+        console.log(signUpDto)
         return await this.authService.signUp(signUpDto);
     }
 
-    @Post('/resend-otp')
+    @Post('resend-otp')
     public async resendOtp(@Body() emailDto: EmailDto) {
         return await this.authService.resendOtp(emailDto);
     }
 
-    @Post('/verify-otp')
+    @HttpCode(HttpStatus.OK)
+    @Post('verify-otp')
     public async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
         return await this.authService.verifyOtp(verifyOtpDto);
     }
 
     @HttpCode(HttpStatus.OK)
-    @Post('/login')
+    @Post('login')
     public async signIn(@Body() loginDto: LoginDto) {
         return await this.authService.signIn(loginDto);
     }
@@ -47,4 +49,18 @@ export class AuthController {
     public async refreshTokens(@GetUser() user) {
         return await this.authService.refreshTokens(user.userId, user.refreshToken);
     }
+
+    @HttpCode(HttpStatus.OK)
+    @Post('forgot-password')
+    public async forgotPassword(@Body() emailDto: EmailDto) {
+        return await this.authService.forgotPassword(emailDto.email);
+    }
+
+    @HttpCode(HttpStatus.OK)
+    @Post('reset-password')
+    public async resetPassword(@Body() resetPasswordDto: VerifyOtpDto) {
+        return await this.authService.resetPassword(resetPasswordDto);
+    }
+    
+
 }

@@ -19,6 +19,7 @@ export class MailService {
                 this.mailerService.sendMail({
                     to: inputs.to,
                     subject: inputs.subject,
+                    html: inputs.html,
                     text: inputs.text,
                     context: inputs.props,
                 });
